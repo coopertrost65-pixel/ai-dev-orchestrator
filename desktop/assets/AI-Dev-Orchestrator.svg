@@ -1,0 +1,29 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Full-bleed artwork: macOS applies the final squircle mask. This keeps
+       the sibling apps' dark field, cream mark, and single violet accent. -->
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1e31"/>
+      <stop offset="1" stop-color="#0a0b12"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.52" cy="0.82" r="0.78">
+      <stop offset="0" stop-color="#796ce9" stop-opacity="0.38"/>
+      <stop offset="0.55" stop-color="#5b5fce" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#5b5fce" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b93f8"/>
+      <stop offset="1" stop-color="#9f6ef0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#background)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+
+  <!-- Selected direction B: one geometric A and one orchestration sweep. -->
+  <path d="M365 652 Q512 492 659 652" fill="none" stroke="url(#accent)"
+        stroke-width="76" stroke-linecap="round"/>
+  <path d="M286 760 468 304 Q484 264 512 264 Q540 264 556 304 L738 760"
+        fill="none" stroke="#eef0fa" stroke-width="102" stroke-linecap="butt"
+        stroke-linejoin="round"/>
+</svg>

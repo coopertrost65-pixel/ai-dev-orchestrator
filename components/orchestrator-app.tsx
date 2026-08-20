@@ -285,6 +285,38 @@ export function OrchestratorApp() {
     setView(firstTask ? "run" : "tasks");
   }
 
+  function deleteProject(projectId: string) {
+    setState((current) => {
+      const remainingProjects = current.projects.filter((project) => project.id !== projectId);
+      const remainingTasks = current.tasks.filter((task) => task.projectId !== projectId);
+      const wasActive = current.activeProjectId === projectId;
+      const nextProjectId = wasActive ? remainingProjects[0]?.id ?? "" : current.activeProjectId;
+      const nextTask = wasActive ? remainingTasks.find((task) => task.projectId === nextProjectId) : undefined;
+      return {
+        ...current,
+        projects: remainingProjects,
+        tasks: remainingTasks,
+        activeProjectId: nextProjectId,
+        activeTaskId: wasActive ? nextTask?.id ?? "" : current.activeTaskId,
+      };
+    });
+    if (state.activeProjectId === projectId) {
+      const remainingProjects = state.projects.filter((project) => project.id !== projectId);
+      setActiveDocId(remainingProjects[0]?.docs[0]?.id ?? "");
+      setView(remainingProjects.length ? "tasks" : "run");
+    }
+    setModal(null);
+    setNotice("Project and its requests were deleted.");
+  }
+
+  function requestDeleteProject(projectId: string, projectName: string) {
+    const taskCount = state.tasks.filter((task) => task.projectId === projectId).length;
+    const warning = taskCount > 0
+      ? `Delete "${projectName}" and its ${taskCount} ${taskCount === 1 ? "request" : "requests"}? This cannot be undone.`
+      : `Delete "${projectName}"? This cannot be undone.`;
+    if (window.confirm(warning)) deleteProject(projectId);
+  }
+
   function selectTask(taskId: string) {
     setState((current) => ({ ...current, activeTaskId: taskId }));
     setView("run");
@@ -783,16 +815,29 @@ export function OrchestratorApp() {
           {state.projects.map((project, index) => {
             const count = state.tasks.filter((task) => task.projectId === project.id && task.status !== "done").length;
             return (
-              <button
-                className={`project-row ${project.id === activeProject?.id ? "project-row-active" : ""}`}
-                type="button"
-                key={project.id}
-                onClick={() => selectProject(project.id)}
-                aria-label={`${project.name}, ${count} open ${count === 1 ? "task" : "tasks"}`}
-              >
-                <span className="project-index">{String(index + 1).padStart(2, "0")}</span>
-                <span><strong>{project.name}</strong><small>{count} open {count === 1 ? "task" : "tasks"}</small></span>
-              </button>
+              <div className={`project-row ${project.id === activeProject?.id ? "project-row-active" : ""}`} key={project.id}>
+                <button
+                  className="project-row-select"
+                  type="button"
+                  onClick={() => selectProject(project.id)}
+                  aria-label={`${project.name}, ${count} open ${count === 1 ? "task" : "tasks"}`}
+                >
+                  <span className="project-index">{String(index + 1).padStart(2, "0")}</span>
+                  <span><strong>{project.name}</strong><small>{count} open {count === 1 ? "task" : "tasks"}</small></span>
+                </button>
+                <button
+                  className="project-delete"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    requestDeleteProject(project.id, project.name);
+                  }}
+                  aria-label={`Delete ${project.name}`}
+                  title={`Delete ${project.name}`}
+                >
+                  ×
+                </button>
+              </div>
             );
           })}
           {!state.projects.length && <p className="rail-empty-copy">No projects yet.</p>}
@@ -851,6 +896,7 @@ export function OrchestratorApp() {
           )}
           {view === "run" && activeTask && (
             <RunView
+              key={activeTask.id}
               task={activeTask}
               projectName={activeProject?.name ?? "No project"}
               agents={state.agents}
@@ -960,6 +1006,25 @@ function RunView({
   onOpenSettings: () => void;
   onCreateTask: () => void;
 }) {
+  const [confirmingApproval, setConfirmingApproval] = useState(false);
+  const approveTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (approveTimeoutRef.current !== null) window.clearTimeout(approveTimeoutRef.current);
+    };
+  }, []);
+
+  function handleApprove() {
+    if (confirmingApproval) return;
+    setConfirmingApproval(true);
+    approveTimeoutRef.current = window.setTimeout(() => {
+      onApprove();
+      setConfirmingApproval(false);
+      approveTimeoutRef.current = null;
+    }, 550);
+  }
+
   if (!task) {
     return (
       <div className="empty-state">
@@ -1076,8 +1141,10 @@ function RunView({
               {task.pendingApproval ? (
                 <>
                   <div className="approval-explainer"><strong>{task.pendingApproval === "plan" ? "Nothing has been built yet." : "The code was built and checked."}</strong><span>{task.pendingApproval === "plan" ? "Review the plan, then approve before code changes begin." : "Accept the review findings before the final improvement pass."}</span></div>
-                  <button className="secondary-action" type="button" onClick={onReject}>Ask for changes</button>
-                  <button className="approve-action" type="button" onClick={onApprove}>{task.pendingApproval === "plan" ? "Approve plan" : "Accept findings"}</button>
+                  <button className="secondary-action" type="button" onClick={onReject} disabled={confirmingApproval}>Ask for changes</button>
+                  <button className="approve-action" type="button" onClick={handleApprove} disabled={confirmingApproval}>
+                    {confirmingApproval ? <><span className="running-mark" aria-hidden="true" /> Approved</> : task.pendingApproval === "plan" ? "Approve plan" : "Accept findings"}
+                  </button>
                 </>
               ) : task.phase !== "done" && pendingPermissions.length === 0 ? (
                 <button className="approve-action run-action" type="button" onClick={onRun} disabled={running || Boolean(block)}>

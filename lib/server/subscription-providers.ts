@@ -1,6 +1,6 @@
-import type { ProviderId } from "../domain/types";
-import { claudeDisallowedTools } from "../providers/claude-permissions";
-import type { ProviderRequest, ProviderResponse, ProviderStatusResponse, ProviderUsageSnapshot } from "../providers/types";
+import type { ProviderId } from "../domain/types.ts";
+import { claudeDisallowedTools } from "../providers/claude-permissions.ts";
+import type { ProviderRequest, ProviderResponse, ProviderStatusResponse, ProviderUsageSnapshot } from "../providers/types.ts";
 import {
   emptyUsage,
   limitErrorUsage,
@@ -9,7 +9,7 @@ import {
   parseClaudeUsageReport,
   type RawClaudeRateLimitInfo,
   type RawCodexRateLimitSnapshot,
-} from "../providers/usage";
+} from "../providers/usage.ts";
 
 const RESPONSE_SCHEMA = {
   type: "object",
@@ -478,6 +478,35 @@ export async function runCodexSubscription(request: ProviderRequest): Promise<Pr
   }
 }
 
+/**
+ * Picks a model per phase and per task importance so cheap, read-only steps
+ * never pay for the top-tier model, and only work marked "important" (the
+ * app's own existing signal — the field the New Request form's Importance
+ * dropdown already writes) spends on Opus. Sonnet is the default for
+ * ordinary building/reviewing; nothing here invents a new concept, it reuses
+ * `task.importance`, which was already wired through the whole app.
+ */
+export function selectClaudeModel(request: ProviderRequest): string {
+  const important = request.task.importance === "important";
+  switch (request.phase) {
+    case "explore":
+    case "verify":
+      // Read-only: gathering context or checking evidence, never worth Opus.
+      return "haiku";
+    case "plan":
+      return important ? "sonnet" : "haiku";
+    case "implement":
+    case "fix":
+      return important ? "opus" : "sonnet";
+    case "code_review":
+      // The independent, adversarial second opinion — exactly where paying
+      // for rigor matters, and exactly what "important" is meant to flag.
+      return important ? "opus" : "sonnet";
+    default:
+      return "sonnet";
+  }
+}
+
 export async function runClaudeSubscription(request: ProviderRequest): Promise<ProviderResponse> {
   desktopOnly();
   const connection = await claudeConnection();
@@ -490,6 +519,7 @@ export async function runClaudeSubscription(request: ProviderRequest): Promise<P
     const disallowedTools = claudeDisallowedTools(request);
     const result = await runProcess(executable, [
       "-p",
+      "--model", selectClaudeModel(request),
       "--output-format", "stream-json",
       "--verbose",
       "--json-schema", JSON.stringify(RESPONSE_SCHEMA),

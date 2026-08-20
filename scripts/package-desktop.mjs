@@ -19,6 +19,7 @@ const packagedOutputName = `AI Dev Orchestrator-darwin-${architecture}`;
 const zipPath = path.join(outputDirectory, `AI-Dev-Orchestrator-macOS-${architecture}.zip`);
 const assetZipPath = path.join(outputDirectory, "AI-Dev-Orchestrator-Icon-Assets.zip");
 const sourcePackage = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+const localSigningIdentity = process.env.LOCAL_SIGNING_IDENTITY ?? "9D2338EE4136163C480F7AFB1D0C78C06FFF3255";
 
 await rm(stage, { recursive: true, force: true });
 await rm(path.join(outputDirectory, packagedOutputName), { recursive: true, force: true });
@@ -90,7 +91,7 @@ try {
 
   const appBundle = path.join(appPaths[0], `${sourcePackage.productName}.app`);
   await execFileAsync("/usr/bin/xattr", ["-cr", appBundle]);
-  await execFileAsync("/usr/bin/codesign", ["--force", "--deep", "--sign", "-", "--timestamp=none", appBundle]);
+  await execFileAsync("/usr/bin/codesign", ["--force", "--deep", "--sign", localSigningIdentity, "--timestamp=none", appBundle]);
   await execFileAsync("/usr/bin/codesign", ["--verify", "--deep", "--strict", "--verbose=2", appBundle]);
   await execFileAsync("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", appBundle, zipPath]);
   await execFileAsync("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", assetDirectory, assetZipPath]);
